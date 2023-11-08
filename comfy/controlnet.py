@@ -8,7 +8,7 @@ import comfy.model_patcher
 
 import comfy.cldm.cldm
 import comfy.t2i_adapter.adapter
-
+import comfy.t2i_adapter.reference
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
@@ -303,7 +303,7 @@ def load_controlnet(ckpt_path, model=None):
         return ControlLora(controlnet_data)
 
     controlnet_config = None
-    if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
+    if "controlnet_cond_embedding.conv_in.weight" in controlnet_data and "conv_in.weight" in controlnet_data: #diffusers format
         unet_dtype = comfy.model_management.unet_dtype()
         controlnet_config = comfy.model_detection.unet_config_from_diffusers_unet(controlnet_data, unet_dtype)
         diffusers_keys = comfy.utils.unet_to_diffusers(controlnet_config)
@@ -487,6 +487,10 @@ def load_t2i_adapter(t2i_data):
         if cin == 256 or cin == 768:
             xl = True
         model_ad = comfy.t2i_adapter.adapter.Adapter(cin=cin, channels=[channel, channel*2, channel*4, channel*4][:4], nums_rb=2, ksize=ksize, sk=True, use_conv=use_conv, xl=xl)
+    elif 'controlnet_cond_embedding.conv_out.weight' in keys:
+        embed_channels = t2i_data['controlnet_cond_embedding.conv_out.weight'].shape[0]
+        model_ad = comfy.t2i_adapter.reference.ControlNetConditioningEmbedding(embed_channels)
+        t2i_data = comfy.utils.state_dict_prefix_replace(t2i_data, {"controlnet_cond_embedding.": ""})
     else:
         return None
     missing, unexpected = model_ad.load_state_dict(t2i_data)
